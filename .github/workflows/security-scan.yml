@@ -140,6 +140,154 @@ jobs:
         sarif_file: dependency-check-report/dependency-check-report.sarif
         category: dependency-check
 
+    - name: Prepare email report
+      id: email-prep
+      if: always()
+      run: |
+        # Extract vulnerability counts
+        if [ -f npm-audit-report.json ]; then
+          CRITICAL=$(jq '.metadata.vulnerabilities.critical // 0' npm-audit-report.json)
+          HIGH=$(jq '.metadata.vulnerabilities.high // 0' npm-audit-report.json)
+          MODERATE=$(jq '.metadata.vulnerabilities.moderate // 0' npm-audit-report.json)
+          LOW=$(jq '.metadata.vulnerabilities.low // 0' npm-audit-report.json)
+          TOTAL=$(jq '.metadata.vulnerabilities.total // 0' npm-audit-report.json)
+        else
+          CRITICAL=0
+          HIGH=0
+          MODERATE=0
+          LOW=0
+          TOTAL=0
+        fi
+
+        # Determine status
+        if [ "$CRITICAL" -gt 0 ]; then
+          STATUS="🚨 CRITICAL"
+          STATUS_COLOR="red"
+        elif [ "$HIGH" -gt 5 ]; then
+          STATUS="⚠️ WARNING"
+          STATUS_COLOR="orange"
+        else
+          STATUS="✅ PASSED"
+          STATUS_COLOR="green"
+        fi
+
+        # Create email body
+        cat > email-body.html <<EOF
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .header { background-color: #0366d6; color: white; padding: 20px; text-align: center; }
+            .status { font-size: 24px; font-weight: bold; color: $STATUS_COLOR; margin: 20px 0; }
+            .summary { background-color: #f6f8fa; padding: 15px; border-radius: 5px; margin: 20px 0; }
+            .vulnerability-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+            .vulnerability-table th, .vulnerability-table td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+            .vulnerability-table th { background-color: #0366d6; color: white; }
+            .critical { color: #d73a49; font-weight: bold; }
+            .high { color: #e36209; font-weight: bold; }
+            .moderate { color: #ffd33d; font-weight: bold; }
+            .low { color: #28a745; }
+            .footer { margin-top: 30px; padding: 20px; background-color: #f6f8fa; font-size: 12px; }
+            .button { background-color: #0366d6; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 10px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>🔒 Security Scan Report</h1>
+            <p>Repository: ${{ github.repository }}</p>
+            <p>Branch: ${{ github.ref_name }}</p>
+          </div>
+
+          <div class="status">
+            Status: $STATUS
+          </div>
+
+          <div class="summary">
+            <h2>Vulnerability Summary</h2>
+            <table class="vulnerability-table">
+              <tr>
+                <th>Severity</th>
+                <th>Count</th>
+              </tr>
+              <tr>
+                <td class="critical">Critical</td>
+                <td class="critical">$CRITICAL</td>
+              </tr>
+              <tr>
+                <td class="high">High</td>
+                <td class="high">$HIGH</td>
+              </tr>
+              <tr>
+                <td class="moderate">Moderate</td>
+                <td class="moderate">$MODERATE</td>
+              </tr>
+              <tr>
+                <td class="low">Low</td>
+                <td class="low">$LOW</td>
+              </tr>
+              <tr>
+                <td><strong>Total</strong></td>
+                <td><strong>$TOTAL</strong></td>
+              </tr>
+            </table>
+          </div>
+
+          <div class="summary">
+            <h2>Scan Details</h2>
+            <ul>
+              <li><strong>Node Version:</strong> ${{ matrix.node-version }}</li>
+              <li><strong>Commit:</strong> ${{ github.sha }}</li>
+              <li><strong>Triggered by:</strong> ${{ github.actor }}</li>
+              <li><strong>Scan Date:</strong> $(date)</li>
+            </ul>
+          </div>
+
+          <div class="summary">
+            <h2>Security Scans Performed</h2>
+            <ul>
+              <li>✓ NPM Audit</li>
+              <li>✓ Snyk Security Scan</li>
+              <li>✓ OWASP Dependency-Check</li>
+              <li>✓ Outdated Packages Check</li>
+            </ul>
+          </div>
+
+          <p>
+            <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" class="button">
+              View Full Report in GitHub Actions
+            </a>
+          </p>
+
+          <div class="footer">
+            <p>This is an automated security scan report from GitHub Actions.</p>
+            <p>For detailed reports, check the workflow artifacts in GitHub Actions.</p>
+          </div>
+        </body>
+        </html>
+        EOF
+
+        # Save values for next step
+        echo "CRITICAL=$CRITICAL" >> $GITHUB_OUTPUT
+        echo "HIGH=$HIGH" >> $GITHUB_OUTPUT
+        echo "STATUS=$STATUS" >> $GITHUB_OUTPUT
+
+    - name: Send email notification
+      if: always() && vars.SECURITY_EMAIL != ''
+      uses: dawidd6/action-send-mail@v3
+      with:
+        server_address: ${{ secrets.MAIL_SERVER }}
+        server_port: ${{ secrets.MAIL_PORT || '587' }}
+        username: ${{ secrets.MAIL_USERNAME }}
+        password: ${{ secrets.MAIL_PASSWORD }}
+        subject: "${{ steps.email-prep.outputs.STATUS }} - Security Scan: ${{ github.repository }} [${{ github.ref_name }}]"
+        to: ${{ vars.SECURITY_EMAIL }}
+        from: ${{ secrets.MAIL_FROM || secrets.MAIL_USERNAME }}
+        html_body: file://email-body.html
+        attachments: |
+          npm-audit-report.txt
+          security-summary.md
+
     - name: Fail job if critical vulnerabilities found
       run: |
         if [ -f npm-audit-report.json ]; then

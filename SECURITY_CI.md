@@ -35,6 +35,14 @@ This repository is configured with an automated security scanning CI/CD pipeline
 - 90-day retention for production builds
 - Automatic release asset creation for tagged versions
 
+### 📧 Email Notifications
+
+- Sends formatted HTML email reports after each security scan
+- Includes vulnerability summary with severity breakdown
+- Attaches detailed reports (npm-audit, security-summary)
+- Color-coded status indicators (Critical/Warning/Passed)
+- Direct links to GitHub Actions workflow run
+
 ## Workflow Triggers
 
 The security scan runs on:
@@ -52,9 +60,64 @@ Rename `package.json.example` to `package.json` and configure your Node.js appli
 mv package.json.example package.json
 ```
 
-### 2. Configure Secrets (Optional but Recommended)
+### 2. Configure Secrets and Variables
 
-Add the following secrets to your GitHub repository:
+#### Email Notification Setup (Recommended)
+
+To receive security scan reports via email:
+
+**Step 1: Add Repository Variable**
+1. Go to Repository Settings → Secrets and variables → Actions → Variables tab
+2. Click "New repository variable"
+3. Add variable:
+   - Name: `SECURITY_EMAIL`
+   - Value: `your-email@example.com` (or comma-separated list: `dev-team@example.com,security@example.com`)
+
+**Step 2: Add Email Server Secrets**
+Go to Repository Settings → Secrets and variables → Actions → Secrets tab and add:
+
+- `MAIL_SERVER`: SMTP server address (e.g., `smtp.gmail.com`, `smtp.office365.com`, `smtp.sendgrid.net`)
+- `MAIL_PORT`: SMTP port (default: `587` for TLS, `465` for SSL)
+- `MAIL_USERNAME`: Your email account username
+- `MAIL_PASSWORD`: Your email account password or app-specific password
+- `MAIL_FROM`: (Optional) Email address to send from (defaults to `MAIL_USERNAME`)
+
+**Common SMTP Configurations:**
+
+**Gmail:**
+```
+MAIL_SERVER: smtp.gmail.com
+MAIL_PORT: 587
+MAIL_USERNAME: your-email@gmail.com
+MAIL_PASSWORD: your-app-specific-password
+```
+Note: Enable 2-factor authentication and create an [App Password](https://myaccount.google.com/apppasswords)
+
+**Office 365/Outlook:**
+```
+MAIL_SERVER: smtp.office365.com
+MAIL_PORT: 587
+MAIL_USERNAME: your-email@outlook.com
+MAIL_PASSWORD: your-password
+```
+
+**SendGrid:**
+```
+MAIL_SERVER: smtp.sendgrid.net
+MAIL_PORT: 587
+MAIL_USERNAME: apikey
+MAIL_PASSWORD: your-sendgrid-api-key
+```
+
+**AWS SES:**
+```
+MAIL_SERVER: email-smtp.us-east-1.amazonaws.com
+MAIL_PORT: 587
+MAIL_USERNAME: your-smtp-username
+MAIL_PASSWORD: your-smtp-password
+```
+
+#### Other Secrets (Optional)
 
 - `SNYK_TOKEN`: Get your token from [Snyk.io](https://snyk.io/)
   - Go to Repository Settings → Secrets and variables → Actions
@@ -94,7 +157,9 @@ Runs on multiple Node.js versions (18.x, 20.x) to ensure compatibility.
 8. Generate security summary report
 9. Upload all reports as artifacts
 10. Upload SARIF report to GitHub Security tab
-11. Fail if critical vulnerabilities found
+11. Prepare HTML email report with vulnerability summary
+12. Send email notification (if configured)
+13. Fail if critical vulnerabilities found
 
 **Failure Conditions:**
 - Any critical vulnerabilities found
@@ -137,6 +202,34 @@ Reports included:
 2. Click on successful workflow run
 3. Download `nodejs-app-{sha}` artifact
 4. Contains: `app-bundle-{sha}.tar.gz`
+
+### Email Reports
+
+If email notifications are configured, you'll receive:
+
+**Email Features:**
+- Professional HTML-formatted report
+- Color-coded status header (🚨 CRITICAL / ⚠️ WARNING / ✅ PASSED)
+- Vulnerability summary table with counts by severity
+- Scan details (Node version, commit, triggered by, date)
+- List of security tools used
+- Direct link button to view full report in GitHub Actions
+- Attached files: `npm-audit-report.txt`, `security-summary.md`
+
+**Email Subject Format:**
+```
+[STATUS] - Security Scan: your-org/your-repo [branch-name]
+```
+
+**Example Subjects:**
+- `✅ PASSED - Security Scan: acme/web-app [main]`
+- `⚠️ WARNING - Security Scan: acme/web-app [develop]`
+- `🚨 CRITICAL - Security Scan: acme/web-app [feature/auth]`
+
+**When Emails Are Sent:**
+- After every security scan (on push, PR, or manual trigger)
+- Regardless of pass/fail status (always sent if configured)
+- Separate email for each Node.js version tested
 
 ## Security Alerts Integration
 
@@ -227,6 +320,31 @@ retention-days: 90  # Change to your preferred duration
 
 - Check workflow permissions in repository settings
 - Ensure Actions have write permissions
+
+### Email Notifications Not Working
+
+**Email not being sent:**
+- Verify `SECURITY_EMAIL` variable is set (not a secret, but a variable)
+- Check all required secrets are configured: `MAIL_SERVER`, `MAIL_USERNAME`, `MAIL_PASSWORD`
+- Review workflow logs for email step errors
+- Ensure email step shows "if: always() && vars.SECURITY_EMAIL != ''" condition is met
+
+**Authentication errors:**
+- For Gmail: Use App Password, not regular password (requires 2FA enabled)
+- For Office 365: Ensure account allows SMTP access
+- For SendGrid/AWS SES: Verify API credentials are correct
+- Check SMTP server address and port are correct for your provider
+
+**Email delivered to spam:**
+- Add the sender email to your contacts
+- Check SPF/DKIM records if using custom domain
+- Use a reputable SMTP provider (Gmail, SendGrid, AWS SES)
+
+**Testing email configuration:**
+You can test email settings by triggering a manual workflow run:
+1. Go to Actions tab → Security Scan CI
+2. Click "Run workflow" button
+3. Check logs for email step output
 
 ## Support
 
