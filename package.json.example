@@ -1,0 +1,22 @@
+{
+  "name": "nodejs-security-scan-example",
+  "version": "1.0.0",
+  "description": "Node.js application with security scanning CI/CD pipeline",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Run your tests here\" && exit 0",
+    "build": "echo \"Build your application here\"",
+    "security:audit": "npm audit",
+    "security:fix": "npm audit fix"
+  },
+  "keywords": [
+    "nodejs",
+    "security",
+    "ci-cd"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {}
+}

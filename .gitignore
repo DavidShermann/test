@@ -1,6 +1,57 @@
-*
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+.npm
+.eslintcache
+
+# Build outputs
+dist/
+build/
+*.tgz
+
+# Security reports
+npm-audit-report.json
+npm-audit-report.txt
+snyk-report.json
+dependency-check-report/
+outdated-packages.txt
+security-summary.md
+dependency-check-*.zip
+artifacts/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python (keep existing)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Keep existing files
 !*.py
 !*.yaml
+!*.yml
+!*.json
+!*.js
+!*.md
 !Jenkinsfile
 !README*
 !Chart*
@@ -8,3 +59,5 @@
 !templates/*
 !templates/tests/*
 !values*
+!.github/
+!.github/**/*
