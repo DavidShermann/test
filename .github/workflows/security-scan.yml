@@ -288,6 +288,97 @@ jobs:
           npm-audit-report.txt
           security-summary.md
 
+    - name: Prepare Slack notification
+      id: slack-prep
+      if: always()
+      run: |
+        # Extract vulnerability counts
+        if [ -f npm-audit-report.json ]; then
+          CRITICAL=$(jq '.metadata.vulnerabilities.critical // 0' npm-audit-report.json)
+          HIGH=$(jq '.metadata.vulnerabilities.high // 0' npm-audit-report.json)
+          MODERATE=$(jq '.metadata.vulnerabilities.moderate // 0' npm-audit-report.json)
+          LOW=$(jq '.metadata.vulnerabilities.low // 0' npm-audit-report.json)
+          TOTAL=$(jq '.metadata.vulnerabilities.total // 0' npm-audit-report.json)
+        else
+          CRITICAL=0
+          HIGH=0
+          MODERATE=0
+          LOW=0
+          TOTAL=0
+        fi
+
+        # Determine status and color
+        if [ "$CRITICAL" -gt 0 ]; then
+          STATUS="🚨 CRITICAL"
+          COLOR="danger"
+        elif [ "$HIGH" -gt 5 ]; then
+          STATUS="⚠️ WARNING"
+          COLOR="warning"
+        else
+          STATUS="✅ PASSED"
+          COLOR="good"
+        fi
+
+        # Create Slack payload
+        cat > slack-payload.json <<EOF
+        {
+          "attachments": [
+            {
+              "color": "$COLOR",
+              "title": "🔒 Security Scan Report",
+              "title_link": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+              "text": "*Status:* $STATUS\n*Repository:* ${{ github.repository }}\n*Branch:* ${{ github.ref_name }}\n*Node Version:* ${{ matrix.node-version }}",
+              "fields": [
+                {
+                  "title": "Critical",
+                  "value": "$CRITICAL",
+                  "short": true
+                },
+                {
+                  "title": "High",
+                  "value": "$HIGH",
+                  "short": true
+                },
+                {
+                  "title": "Moderate",
+                  "value": "$MODERATE",
+                  "short": true
+                },
+                {
+                  "title": "Low",
+                  "value": "$LOW",
+                  "short": true
+                },
+                {
+                  "title": "Total Vulnerabilities",
+                  "value": "$TOTAL",
+                  "short": false
+                },
+                {
+                  "title": "Commit",
+                  "value": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}> by ${{ github.actor }}",
+                  "short": false
+                }
+              ],
+              "footer": "Security Scan CI",
+              "footer_icon": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+              "ts": $(date +%s)
+            }
+          ]
+        }
+        EOF
+
+        echo "STATUS=$STATUS" >> $GITHUB_OUTPUT
+        echo "COLOR=$COLOR" >> $GITHUB_OUTPUT
+
+    - name: Send Slack notification
+      if: always() && secrets.SLACK_WEBHOOK_URL != ''
+      run: |
+        curl -X POST -H 'Content-type: application/json' \
+          --data @slack-payload.json \
+          ${{ secrets.SLACK_WEBHOOK_URL }}
+        echo "Slack notification sent successfully"
+
     - name: Fail job if critical vulnerabilities found
       run: |
         if [ -f npm-audit-report.json ]; then

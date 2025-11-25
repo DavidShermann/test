@@ -43,6 +43,14 @@ This repository is configured with an automated security scanning CI/CD pipeline
 - Color-coded status indicators (Critical/Warning/Passed)
 - Direct links to GitHub Actions workflow run
 
+### 💬 Slack Notifications
+
+- Posts formatted messages to Slack channels after each scan
+- Color-coded attachments (red=danger, orange=warning, green=good)
+- Vulnerability breakdown with severity counts
+- Clickable links to workflow runs and commits
+- Real-time security alerts for your team
+
 ## Workflow Triggers
 
 The security scan runs on:
@@ -117,6 +125,45 @@ MAIL_USERNAME: your-smtp-username
 MAIL_PASSWORD: your-smtp-password
 ```
 
+#### Slack Notification Setup (Recommended)
+
+To receive security scan notifications in Slack:
+
+**Step 1: Create a Slack Incoming Webhook**
+
+1. Go to your Slack workspace
+2. Visit [Slack API Apps](https://api.slack.com/apps)
+3. Click "Create New App" → "From scratch"
+4. Name your app (e.g., "Security Scanner") and select your workspace
+5. In the app settings, go to "Incoming Webhooks"
+6. Activate "Incoming Webhooks" toggle
+7. Click "Add New Webhook to Workspace"
+8. Select the channel where you want notifications (e.g., #security, #deployments)
+9. Copy the Webhook URL (looks like: `https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXX`)
+
+**Step 2: Add Webhook to GitHub Secrets**
+
+1. Go to Repository Settings → Secrets and variables → Actions → Secrets tab
+2. Click "New repository secret"
+3. Add secret:
+   - Name: `SLACK_WEBHOOK_URL`
+   - Value: Your copied webhook URL
+
+**Slack Message Features:**
+- Color-coded sidebar (🔴 Critical, 🟠 Warning, 🟢 Passed)
+- Vulnerability counts by severity
+- Direct links to GitHub Actions and commits
+- Repository and branch information
+- Timestamp of scan
+
+**Customizing Slack Channels:**
+You can create multiple webhooks for different channels:
+- `#security` - For critical/high vulnerabilities only
+- `#dev-notifications` - For all scan results
+- `#deployments` - For production branch scans
+
+To send to multiple channels, you can add additional webhook secrets and modify the workflow.
+
 #### Other Secrets (Optional)
 
 - `SNYK_TOKEN`: Get your token from [Snyk.io](https://snyk.io/)
@@ -159,7 +206,9 @@ Runs on multiple Node.js versions (18.x, 20.x) to ensure compatibility.
 10. Upload SARIF report to GitHub Security tab
 11. Prepare HTML email report with vulnerability summary
 12. Send email notification (if configured)
-13. Fail if critical vulnerabilities found
+13. Prepare Slack message with vulnerability breakdown
+14. Send Slack notification (if configured)
+15. Fail if critical vulnerabilities found
 
 **Failure Conditions:**
 - Any critical vulnerabilities found
@@ -230,6 +279,50 @@ If email notifications are configured, you'll receive:
 - After every security scan (on push, PR, or manual trigger)
 - Regardless of pass/fail status (always sent if configured)
 - Separate email for each Node.js version tested
+
+### Slack Notifications
+
+If Slack webhook is configured, you'll receive:
+
+**Message Features:**
+- Color-coded attachment border:
+  - 🔴 Red (danger): Critical vulnerabilities found
+  - 🟠 Orange (warning): High vulnerabilities exceed threshold
+  - 🟢 Green (good): All checks passed
+- Structured fields showing:
+  - Critical, High, Moderate, Low vulnerability counts
+  - Total vulnerabilities found
+  - Commit hash with clickable link
+  - Repository, branch, and Node.js version
+- Clickable title linking to full GitHub Actions run
+- GitHub icon and timestamp
+
+**Example Slack Message:**
+```
+🔒 Security Scan Report
+Status: ✅ PASSED
+Repository: acme/web-app
+Branch: main
+Node Version: 20.x
+
+Critical: 0    High: 2
+Moderate: 5    Low: 8
+Total Vulnerabilities: 15
+
+Commit: abc123d by johndoe
+```
+
+**When Slack Messages Are Sent:**
+- After every security scan completes
+- Regardless of success/failure
+- One message per Node.js version tested
+- Instant notification to keep team informed
+
+**Best Practices:**
+- Use dedicated channels like `#security` or `#security-alerts`
+- Set up channel notifications for critical issues
+- Pin important messages for visibility
+- Create separate webhooks for different severity levels
 
 ## Security Alerts Integration
 
@@ -345,6 +438,41 @@ You can test email settings by triggering a manual workflow run:
 1. Go to Actions tab → Security Scan CI
 2. Click "Run workflow" button
 3. Check logs for email step output
+
+### Slack Notifications Not Working
+
+**Slack message not appearing:**
+- Verify `SLACK_WEBHOOK_URL` secret is configured correctly
+- Check the webhook URL is valid and not expired
+- Ensure the Slack app has permission to post to the channel
+- Review workflow logs for the "Send Slack notification" step
+
+**Webhook errors:**
+- `invalid_payload`: Check the JSON payload format in workflow logs
+- `channel_not_found`: Recreate the webhook for the correct channel
+- `posting_to_general_channel_denied`: Create webhook for a different channel
+- Test webhook manually:
+  ```bash
+  curl -X POST -H 'Content-type: application/json' \
+    --data '{"text":"Test message"}' \
+    YOUR_WEBHOOK_URL
+  ```
+
+**Message formatting issues:**
+- Ensure special characters in commit messages don't break JSON
+- Check that vulnerability counts are displaying correctly
+- Verify links to GitHub are properly formatted
+
+**Slack app disabled:**
+- Check if the Slack app was removed or disabled
+- Go to Slack workspace settings → Apps → Manage
+- Reinstall the app if necessary and update webhook URL
+
+**Testing Slack configuration:**
+1. Go to Actions tab → Security Scan CI
+2. Click "Run workflow" button
+3. Check the Slack channel for the notification
+4. Review workflow logs: look for "Slack notification sent successfully"
 
 ## Support
 
